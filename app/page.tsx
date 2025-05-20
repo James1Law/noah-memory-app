@@ -39,7 +39,7 @@ export default function Home() {
               alt={latestMemory?.title || "Noah's favorite recent memory"}
               width={600}
               height={400}
-              className="w-full h-64 object-cover"
+              className="w-full h-64 object-contain bg-neutral-200"
               priority
             />
             {latestMemory && (

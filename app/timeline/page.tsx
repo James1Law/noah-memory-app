@@ -80,7 +80,7 @@ export default function Timeline() {
                       alt={memory.title}
                       width={600}
                       height={400}
-                      className="w-full h-48 object-cover rounded-md"
+                      className="w-full h-48 object-contain bg-neutral-200 rounded-md"
                     />
                     <p className="text-muted-foreground">{memory.description}</p>
                   </CardContent>

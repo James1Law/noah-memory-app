@@ -13,12 +13,7 @@ export default function Gallery() {
   const [selectedPhoto, setSelectedPhoto] = useState<(typeof memories)[0] | null>(null)
 
   // Extract photos from memories for the gallery
-  const photos = memories.map((memory) => ({
-    id: memory.id,
-    src: memory.image,
-    alt: memory.title,
-    date: memory.date,
-  }))
+  const photos = memories;
 
   return (
     <div className="container px-4 py-8 mx-auto max-w-md">
@@ -32,11 +27,11 @@ export default function Gallery() {
             onClick={() => setSelectedPhoto(photo)}
           >
             <Image
-              src={photo.src || "/placeholder.svg"}
-              alt={photo.alt}
+              src={photo.image || "/placeholder.svg"}
+              alt={photo.title}
               width={300}
               height={300}
-              className="w-full h-full object-cover transition-transform hover:scale-105"
+              className="w-full h-full object-contain bg-neutral-200 transition-transform hover:scale-105"
             />
           </div>
         ))}
@@ -56,14 +51,14 @@ export default function Gallery() {
             {selectedPhoto && (
               <div className="bg-white p-4 rounded-xl">
                 <Image
-                  src={selectedPhoto.src || "/placeholder.svg"}
-                  alt={selectedPhoto.alt}
+                  src={selectedPhoto.image || "/placeholder.svg"}
+                  alt={selectedPhoto.title}
                   width={600}
                   height={600}
                   className="w-full max-h-[70vh] object-contain rounded-md"
                 />
                 <div className="mt-2 text-center">
-                  <p className="font-medium">{selectedPhoto.alt}</p>
+                  <p className="font-medium">{selectedPhoto.title}</p>
                   <p className="text-sm text-muted-foreground">{selectedPhoto.date}</p>
                 </div>
               </div>
