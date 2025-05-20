@@ -2,6 +2,7 @@
 
 import type React from "react"
 import { createContext, useContext, useState, useEffect } from "react"
+import { supabase } from "@/lib/supabaseClient"
 
 export type Memory = {
   id: number
@@ -59,67 +60,106 @@ const initialMemories: Memory[] = [
 
 type MemoryContextType = {
   memories: Memory[]
-  addMemory: (memory: Omit<Memory, "id" | "month">) => void
+  addMemory: (memory: Omit<Memory, "id" | "month"> & { file: File }) => Promise<void>
 }
 
 const MemoryContext = createContext<MemoryContextType | undefined>(undefined)
 
 export function MemoryProvider({ children }: { children: React.ReactNode }) {
-  const [memories, setMemories] = useState<Memory[]>(() => {
-    // Try to load from localStorage if available (client-side only)
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("noahMemories")
-      return saved ? JSON.parse(saved) : initialMemories
-    }
-    return initialMemories
-  })
+  const [memories, setMemories] = useState<Memory[]>([])
 
-  // Save to localStorage whenever memories change
+  // Fetch memories from Supabase on mount
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("noahMemories", JSON.stringify(memories))
+    async function fetchMemories() {
+      const { data, error } = await supabase
+        .from("memories")
+        .select("id, title, date, description, image_url")
+        .order("date", { ascending: true })
+      if (!error && data) {
+        // Map to Memory type and extract month
+        const monthNames = [
+          "January", "February", "March", "April", "May", "June",
+          "July", "August", "September", "October", "November", "December"
+        ]
+        const mapped = data.map((m: any) => {
+          const dateObj = new Date(m.date)
+          return {
+            id: m.id,
+            title: m.title,
+            date: new Intl.DateTimeFormat("en-US", {
+              month: "long", day: "numeric", year: "numeric"
+            }).format(dateObj),
+            description: m.description,
+            image: m.image_url,
+            month: monthNames[dateObj.getMonth()],
+          }
+        })
+        setMemories(mapped)
+      }
     }
-  }, [memories])
+    fetchMemories()
+  }, [])
 
-  const addMemory = (newMemory: Omit<Memory, "id" | "month">) => {
-    // Extract month from the date
-    const date = new Date(newMemory.date)
-    const monthNames = [
-      "January",
-      "February",
-      "March",
-      "April",
-      "May",
-      "June",
-      "July",
-      "August",
-      "September",
-      "October",
-      "November",
-      "December",
-    ]
-    const month = monthNames[date.getMonth()]
+  // Add memory to Supabase (expects file for image)
+  const addMemory = async (newMemory: Omit<Memory, "id" | "month"> & { file: File }) => {
+    // 1. Upload image to Supabase Storage
+    const fileExt = newMemory.file.name.split(".").pop()
+    const fileName = `${Date.now()}.${fileExt}`
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from("noah-photos")
+      .upload(fileName, newMemory.file)
+    if (uploadError) throw uploadError
+    const { data: publicUrlData } = supabase.storage
+      .from("noah-photos")
+      .getPublicUrl(fileName)
+    const imageUrl = publicUrlData.publicUrl
 
-    // Format the date for display
-    const formattedDate = new Intl.DateTimeFormat("en-US", {
-      month: "long",
-      day: "numeric",
-      year: "numeric",
-    }).format(date)
-
-    // Create the new memory with an ID and month
-    const memoryWithId: Memory = {
-      ...newMemory,
-      id: Date.now(), // Use timestamp as a simple ID
-      month,
-      date: formattedDate,
-    }
-
-    // Add the new memory and sort chronologically
-    setMemories((prev) => {
-      const updated = [...prev, memoryWithId]
-      return updated.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    // Log the data being sent to Supabase
+    console.log({
+      title: newMemory.title,
+      date: newMemory.date,
+      description: newMemory.description,
+      image_url: imageUrl,
     })
+
+    // 2. Insert memory into Supabase DB
+    const { data, error } = await supabase
+      .from("memories")
+      .insert([
+        {
+          title: newMemory.title,
+          date: newMemory.date,
+          description: newMemory.description,
+          image_url: imageUrl,
+        },
+      ])
+      .select()
+    if (error) throw error
+    // 3. Refetch all memories
+    const { data: allData } = await supabase
+      .from("memories")
+      .select("id, title, date, description, image_url")
+      .order("date", { ascending: true })
+    if (allData) {
+      const monthNames = [
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"
+      ]
+      const mapped = allData.map((m: any) => {
+        const dateObj = new Date(m.date)
+        return {
+          id: m.id,
+          title: m.title,
+          date: new Intl.DateTimeFormat("en-US", {
+            month: "long", day: "numeric", year: "numeric"
+          }).format(dateObj),
+          description: m.description,
+          image: m.image_url,
+          month: monthNames[dateObj.getMonth()],
+        }
+      })
+      setMemories(mapped)
+    }
   }
 
   return <MemoryContext.Provider value={{ memories, addMemory }}>{children}</MemoryContext.Provider>

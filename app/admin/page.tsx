@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
 import { useMemories } from "@/lib/memory-context"
+import { supabase } from "@/lib/supabaseClient"
 
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -21,6 +22,7 @@ export default function AdminPage() {
   const [date, setDate] = useState("")
   const [description, setDescription] = useState("")
   const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [file, setFile] = useState<File | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const router = useRouter()
@@ -56,6 +58,7 @@ export default function AdminPage() {
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
+      setFile(file)
       const reader = new FileReader()
       reader.onloadend = () => {
         setImagePreview(reader.result as string)
@@ -64,10 +67,10 @@ export default function AdminPage() {
     }
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!title || !date || !description || !imagePreview) {
+    if (!title || !date || !description || !file) {
       toast({
         title: "Missing information",
         description: "Please fill in all fields and add an image.",
@@ -78,35 +81,38 @@ export default function AdminPage() {
 
     setIsLoading(true)
 
-    // Add the new memory
-    addMemory({
-      title,
-      date,
-      description,
-      image: imagePreview || "/placeholder.svg?height=400&width=600",
-    })
-
-    // Show success message
-    toast({
-      title: "Memory added",
-      description: "The new memory has been successfully added to Noah's timeline and gallery.",
-    })
-
-    // Reset the form
-    setTitle("")
-    setDate("")
-    setDescription("")
-    setImagePreview(null)
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ""
+    try {
+      await addMemory({
+        title,
+        date,
+        description,
+        image: "", // will be set by context after upload
+        file,
+      })
+      toast({
+        title: "Memory added",
+        description: "The new memory has been successfully added to Noah's timeline and gallery.",
+      })
+      setTitle("")
+      setDate("")
+      setDescription("")
+      setImagePreview(null)
+      setFile(null)
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ""
+      }
+      setTimeout(() => {
+        router.push("/timeline")
+      }, 1500)
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: "There was a problem saving the memory.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
     }
-
-    setIsLoading(false)
-
-    // Navigate to timeline to see the new memory
-    setTimeout(() => {
-      router.push("/timeline")
-    }, 1500)
   }
 
   if (!isAuthenticated) {
